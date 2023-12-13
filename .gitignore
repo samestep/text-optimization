@@ -1,0 +1,13 @@
+.DS_Store
+/build/
+/cmake_install.cmake
+/CMakeCache.txt
+/CMakeFiles/
+/Makefile
+/minkowski_diff
+/pairs/
+/paths.json
+/polygons.json
+/polygons/
+/svgs/
+node_modules/
