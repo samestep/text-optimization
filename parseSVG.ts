@@ -10,7 +10,7 @@ const element = (node: Node | string): ElementNode => {
 
 const parseDef = (node: ElementNode): Segment[] => {
   if (node.tagName !== "path") throw Error(`not path: ${node.tagName}`);
-  return parsePath(node.properties.d as string);
+  return parsePath(node.properties?.d as string);
 };
 
 const paths: Record<string, Segment[]> = {};

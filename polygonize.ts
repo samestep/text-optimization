@@ -4,13 +4,13 @@ const paths: Record<string, Segment[]> = JSON.parse(
   await Bun.file("paths.json").text(),
 );
 
-const polygons = {};
+const polygons: Record<string, [number, number][][]> = {};
 
 for (const [key, path] of Object.entries(paths)) {
   const polys = [];
-  let poly = [];
-  let x: number;
-  let y: number;
+  let poly: [number, number][] = [];
+  let x: number = NaN;
+  let y: number = NaN;
   for (const [kind, ...nums] of path) {
     switch (kind) {
       case "M": {

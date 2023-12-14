@@ -3,6 +3,7 @@
     "types": ["bun-types"],
     "moduleResolution": "Node",
     "module": "ESNext",
+    "strict": true,
     "target": "ESNext"
   }
 }
