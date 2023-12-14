@@ -12,11 +12,13 @@ Configure:
 ```sh
 bun install
 cmake -DCMAKE_BUILD_TYPE=Release .
+pip install -r requirements.txt
 ```
 
 Build and run:
 
 ```sh
-./build.sh # pretty fast
-./run.sh # pretty slow
+./build.sh  # fast
+./run.sh    # slow
+./reduce.sh # fast
 ```

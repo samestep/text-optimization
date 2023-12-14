@@ -20,6 +20,6 @@ for (const a of strings.keys()) {
       continue;
     }
     const out = await new Response(proc.stdout).text();
-    await Bun.write(`pairs/${a}-${b}.dat`, out);
+    await Bun.write(`${dir}/${a}-${b}.dat`, out);
   }
 }
