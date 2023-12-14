@@ -14,7 +14,12 @@ for (const a of strings.keys()) {
       `polygons/${a}.dat`,
       `polygons/${b}.dat`,
     ]);
-    const text = await new Response(proc.stdout).text();
-    await Bun.write(`pairs/${a}-${b}.dat`, text);
+    await proc.exited;
+    if (proc.signalCode) {
+      console.error(`  error: ${proc.signalCode}`);
+      continue;
+    }
+    const out = await new Response(proc.stdout).text();
+    await Bun.write(`pairs/${a}-${b}.dat`, out);
   }
 }
