@@ -3,6 +3,7 @@
 /cmake_install.cmake
 /CMakeCache.txt
 /CMakeFiles/
+/dist/
 /Makefile
 /minkowski_diff
 /pairs/

@@ -1,0 +1,30 @@
+name: Build
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install
+      - run: bun run build
+      - uses: actions/upload-pages-artifact@v2
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-22.04
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v2
