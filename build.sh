@@ -3,13 +3,13 @@ set -eo pipefail
 set -x
 
 rm -rf svgs
-bun latexToSVG.ts
+scripts/latexToSVG.ts
 
-bun parseSVG.ts
+scripts/parseSVG.ts
 
-bun polygonize.ts
+scripts/polygonize.ts
 
 rm -rf polygons
-bun cgalize.ts
+scripts/cgalize.ts
 
 make

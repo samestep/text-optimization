@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "bunx --bun vite",
     "build": "bunx --bun vite build",
+    "preview": "bunx --bun vite preview",
     "check": "bunx --bun prettier . --check"
   }
 }

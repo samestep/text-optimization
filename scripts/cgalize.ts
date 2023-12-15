@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import * as fs from "node:fs";
 
 const polygons: Record<string, [number, number][][]> = JSON.parse(

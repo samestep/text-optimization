@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import * as fs from "node:fs";
 import { strings } from "./common.js";
 

@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import { Segment } from "./common.js";
 
 const paths: Record<string, Segment[]> = JSON.parse(

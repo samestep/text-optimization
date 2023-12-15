@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import parsePath from "parse-svg-path";
 import { ElementNode, Node, parse as parseSVG } from "svg-parser";
 import { Segment, strings } from "./common.js";
