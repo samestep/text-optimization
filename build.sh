@@ -9,7 +9,7 @@ scripts/parseSVG.ts
 
 scripts/polygonize.ts
 
-rm -rf polygons
+rm -rf src/polygons
 scripts/cgalize.ts
 
 make

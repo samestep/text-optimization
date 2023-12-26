@@ -6,7 +6,7 @@ const polygons: Record<string, [number, number][][]> = JSON.parse(
   await Bun.file("polygons.json").text(),
 );
 
-const dir = "polygons";
+const dir = "src/polygons";
 fs.mkdirSync(dir, { recursive: true });
 
 for (const [key, polys] of Object.entries(polygons)) {

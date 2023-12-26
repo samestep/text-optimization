@@ -2,4 +2,4 @@
 set -eo pipefail
 set -x
 
-./subset.py > safe.txt
+./subset.py > src/safe.txt

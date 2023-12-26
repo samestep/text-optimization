@@ -18,7 +18,7 @@ G.add_nodes_from(letters)
 for a in letters:
     for b in letters:
         # if file exists
-        if not Path(f"pairs/{a}-{b}.dat").exists():
+        if not Path(f"public/pairs/{a}-{b}.dat").exists():
             G.add_edge(a, b)
 
 # Since NetworkX doesn't have a built-in minimum vertex cover algorithm,

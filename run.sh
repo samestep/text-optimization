@@ -2,5 +2,5 @@
 set -eo pipefail
 set -x
 
-rm -rf pairs
+rm -rf public/pairs
 scripts/minkowskiPairs.ts

@@ -3,18 +3,18 @@
 import * as fs from "node:fs";
 import { strings } from "./common.js";
 
-const dir = "pairs";
+const dir = "public/pairs";
 fs.mkdirSync(dir, { recursive: true });
 
 for (const a of strings.keys()) {
   for (const b of strings.keys()) {
     console.log(`${a}-${b}`);
 
-    // run the command `./minkowski_diff ${a} ${b} > pairs/${a}-${b}.dat`
+    // run the command `./minkowski_diff ${a} ${b} > public/pairs/${a}-${b}.dat`
     const proc = Bun.spawn([
       "./minkowski_diff",
-      `polygons/${a}.dat`,
-      `polygons/${b}.dat`,
+      `src/polygons/${a}.dat`,
+      `src/polygons/${b}.dat`,
     ]);
     await proc.exited;
     if (proc.signalCode) {
