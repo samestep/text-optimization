@@ -11,10 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: oven-sh/setup-bun@v1
+
+      # configure
       - run: bun install
+      - run: cmake -DCMAKE_BUILD_TYPE=Release .
+      - run: pip install -r requirements.txt
+
+      # build and run
       - run: ./build.sh
       - run: ./run.sh
       - run: ./reduce.sh
+
+      # site
       - run: bun run check
       - run: bun run build
       - uses: actions/upload-pages-artifact@v2
