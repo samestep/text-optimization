@@ -31,7 +31,9 @@ const parseDat = (text: string): [number, number][] =>
     for (const b of ["lower_beta"]) {
       pairs.set(
         `${a}-${b}`,
-        parseDat(await (await fetch(`/pairs/${a}-${b}.dat`)).text()),
+        parseDat(
+          await (await fetch(`/text-optimization/pairs/${a}-${b}.dat`)).text(),
+        ),
       );
     }
   }
