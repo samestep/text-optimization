@@ -6,10 +6,10 @@
 /dist/
 /Makefile
 /minkowski_diff
-/paths.json
 /polygons.json
+/polygons/
 /public/
-/src/polygons/
+/src/paths.json
 /src/safe.txt
 /svgs/
 node_modules/

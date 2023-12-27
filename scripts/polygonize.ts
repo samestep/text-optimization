@@ -3,7 +3,7 @@
 import { Segment } from "./common.js";
 
 const paths: Record<string, Segment[]> = JSON.parse(
-  await Bun.file("paths.json").text(),
+  await Bun.file("src/paths.json").text(),
 );
 
 const polygons: Record<string, [number, number][][]> = {};

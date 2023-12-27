@@ -30,4 +30,4 @@ for (const key of strings.keys()) {
   paths[key] = parseDef(element(defs.children[0]));
 }
 
-await Bun.write("paths.json", JSON.stringify(paths, null, 2));
+await Bun.write("src/paths.json", JSON.stringify(paths, null, 2));

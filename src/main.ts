@@ -19,7 +19,12 @@ import {
   sub,
   vjp,
 } from "rose";
-import letters from "./safe.txt?raw";
+import paths from "./paths.json";
+import safe from "./safe.txt?raw";
+
+let letters = safe.trimEnd().split("\n");
+// right now we can't handle all the letters at once, it would crash :(
+letters = ["lower_alpha", "lower_beta"];
 
 const min = (a: Real, b: Real) => select(lt(a, b), Real, a, b);
 
@@ -124,20 +129,15 @@ const touch = (e: TouchEvent) => {
 canvas.ontouchstart = touch;
 canvas.ontouchmove = touch;
 
-const polygons = new Map<string, Vec2[]>();
-for (const letter of letters.trimEnd().split("\n")) {
-  const text = await (
-    await fetch(new URL(`./polygons/${letter}.dat`, import.meta.url))
-  ).text();
-  polygons.set(letter, parseDat(text));
-}
-
 const sdfs = new Map<
   string,
   (x: number, y: number) => { d: number; x: number; y: number }
 >();
-for (const a of ["lower_alpha"]) {
-  for (const b of ["lower_beta"]) {
+for (let i = 0; i < letters.length; ++i) {
+  const a = letters[i];
+  for (let j = i; j < letters.length; ++j) {
+    const b = letters[j];
+
     const text = await (
       await fetch(`/text-optimization/pairs/${a}-${b}.dat`)
     ).text();
@@ -168,10 +168,65 @@ const polygon = (points: Vec2[]) => {
 
 const scale = 10;
 
+type Segment = [string, ...number[]];
+
+const drawPath = (path: Segment[]) => {
+  ctx.beginPath();
+  let x: number = NaN;
+  let y: number = NaN;
+  let cpx: number = NaN;
+  let cpy: number = NaN;
+  for (const [kind, ...nums] of path) {
+    switch (kind) {
+      case "M": {
+        [x, y] = nums;
+        ctx.moveTo(x, y);
+        break;
+      }
+      case "L": {
+        [x, y] = nums;
+        ctx.lineTo(x, y);
+        break;
+      }
+      case "H": {
+        [x] = nums;
+        ctx.lineTo(x, y);
+        break;
+      }
+      case "V": {
+        [y] = nums;
+        ctx.lineTo(x, y);
+        break;
+      }
+      case "Z": {
+        ctx.closePath();
+        break;
+      }
+      case "Q": {
+        [cpx, cpy, x, y] = nums;
+        ctx.quadraticCurveTo(cpx, cpy, x, y);
+        break;
+      }
+      case "T": {
+        cpx = 2 * x - cpx;
+        cpy = 2 * y - cpy;
+        [x, y] = nums;
+        ctx.quadraticCurveTo(cpx, cpy, x, y);
+        break;
+      }
+      default:
+        throw Error(`unknown kind: ${kind}`);
+    }
+  }
+};
+
 const glyph = (letter: string, color: string, x: number, y: number) => {
-  const points = polygons.get(letter)!;
   ctx.fillStyle = color;
-  polygon(points.map(([dx, dy]) => [x + dx / scale, y - dy / scale]));
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1 / scale, -1 / scale);
+  drawPath((paths as any)[letter]);
+  ctx.restore();
   ctx.fill();
 };
 
