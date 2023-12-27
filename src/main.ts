@@ -157,15 +157,6 @@ for (let i = 0; i < letters.length; ++i) {
 
 const ctx = canvas.getContext("2d")!;
 
-const polygon = (points: Vec2[]) => {
-  ctx.beginPath();
-  ctx.moveTo(...points[0]);
-  for (const point of points.slice(1)) {
-    ctx.lineTo(...point);
-  }
-  ctx.closePath();
-};
-
 const scale = 10;
 
 type Segment = [string, ...number[]];
