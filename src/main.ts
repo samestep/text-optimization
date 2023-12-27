@@ -1,7 +1,9 @@
 import {
   Bool,
+  Fn,
   Real,
   Vec,
+  abs,
   add,
   and,
   compile,
@@ -19,12 +21,13 @@ import {
   sub,
   vjp,
 } from "rose";
+import * as lbfgs from "./lbfgs.js";
 import paths from "./paths.json";
 import safe from "./safe.txt?raw";
 
 let letters = safe.trimEnd().split("\n");
 // right now we can't handle all the letters at once, it would crash :(
-letters = ["lower_alpha", "lower_beta"];
+letters = ["lower_alpha", "lower_beta", "lower_gamma"];
 
 const min = (a: Real, b: Real) => select(lt(a, b), Real, a, b);
 
@@ -89,28 +92,44 @@ const setSize = () => {
 setSize();
 window.onresize = setSize;
 
-let selected = "alpha";
+let selected: number | undefined = 0;
 
 window.onkeydown = ({ key }) => {
-  if (key === "a") selected = "alpha";
-  if (key === "b") selected = "beta";
+  const n = parseInt(key);
+  if (Number.isInteger(n) && n < glyphs.length) selected = n;
+  else if (key === " ") selected = undefined;
 };
 
-let alphaX = 100;
-let alphaY = 200;
+interface Glyph {
+  key: string;
+  x: number;
+  y: number;
+}
 
-let betaX = 200;
-let betaY = 200;
+const scale = 10;
+
+const glyphs: Glyph[] = [
+  {
+    key: "lower_alpha",
+    x: 1000,
+    y: 2000,
+  },
+  {
+    key: "lower_beta",
+    x: 2000,
+    y: 2000,
+  },
+  {
+    key: "lower_gamma",
+    x: 3000,
+    y: 2000,
+  },
+];
 
 const move = (x: number, y: number) => {
-  if (selected === "alpha") {
-    alphaX = x;
-    alphaY = y;
-  }
-  if (selected === "beta") {
-    betaX = x;
-    betaY = y;
-  }
+  if (selected === undefined) return;
+  glyphs[selected].x = x * scale;
+  glyphs[selected].y = y * scale;
 };
 
 const mouse = (e: MouseEvent) => {
@@ -129,10 +148,7 @@ const touch = (e: TouchEvent) => {
 canvas.ontouchstart = touch;
 canvas.ontouchmove = touch;
 
-const sdfs = new Map<
-  string,
-  (x: number, y: number) => { d: number; x: number; y: number }
->();
+const sdfs = new Map<string, Fn & ((x: Real, y: Real) => Real)>();
 for (let i = 0; i < letters.length; ++i) {
   const a = letters[i];
   for (let j = i; j < letters.length; ++j) {
@@ -143,21 +159,37 @@ for (let i = 0; i < letters.length; ++i) {
     ).text();
     const poly = parseDat(text);
 
-    const R2 = Vec(2, Real);
-    const f = fn([R2], Real, (v) => sdPolygon(poly, [v[0], v[1]]));
-    const g = fn([Real, Real], { d: Real, x: Real, y: Real }, (x, y) => {
-      const { ret, grad } = vjp(f)([x, y]);
-      const v = grad(1);
-      return { d: ret, x: v[0], y: v[1] };
-    });
-
-    sdfs.set(`${a}-${b}`, await compile(g));
+    const f = fn([Real, Real], Real, (x, y) => sdPolygon(poly, [x, y]));
+    sdfs.set(`${a}-${b}`, f);
   }
 }
 
-const ctx = canvas.getContext("2d")!;
+const lagrangian = fn([Vec(glyphs.length, Vec(2, Real))], Real, (positions) => {
+  let sum: Real = 0;
+  for (let i = 0; i < glyphs.length; ++i) {
+    for (let j = i + 1; j < glyphs.length; ++j) {
+      const f = sdfs.get(`${glyphs[i].key}-${glyphs[j].key}`)!;
+      const [ax, ay] = positions[i];
+      const [bx, by] = positions[j];
+      const z = f(sub(bx, ax), sub(ay, by));
+      const w = abs(sub(z, 100));
+      sum = add(sum, mul(w, w));
+    }
+  }
+  return sum;
+});
+const gradient = await compile(
+  fn(
+    [Vec(glyphs.length, Vec(2, Real))],
+    { ret: Real, grad: Vec(glyphs.length, Vec(2, Real)) },
+    (positions) => {
+      const { ret, grad } = vjp(lagrangian)(positions);
+      return { ret, grad: grad(1) };
+    },
+  ),
+);
 
-const scale = 10;
+const ctx = canvas.getContext("2d")!;
 
 type Segment = [string, ...number[]];
 
@@ -211,6 +243,47 @@ const drawPath = (path: Segment[]) => {
   }
 };
 
+const cfg: lbfgs.Config = {
+  m: 17,
+  armijo: 0.001,
+  wolfe: 0.9,
+  minInterval: 1e-9,
+  maxSteps: 10,
+  epsd: 1e-11,
+};
+
+const optimizer: lbfgs.Fn = (x: Float64Array, grad: Float64Array) => {
+  // unflatten `x`, call `gradient`, then reflatten `grad`
+  const positions: [number, number][] = [];
+  for (let i = 0; i < glyphs.length; ++i)
+    positions.push([x[2 * i], x[2 * i + 1]]);
+  const { ret, grad: grads } = gradient(positions);
+  for (let i = 0; i < glyphs.length; ++i) {
+    const g = grads[i];
+    grad[2 * i] = g[0];
+    grad[2 * i + 1] = g[1];
+  }
+  return ret;
+};
+
+const getVarying = (): Float64Array => {
+  const x = new Float64Array(2 * glyphs.length);
+  for (let i = 0; i < glyphs.length; ++i) {
+    x[2 * i] = glyphs[i].x;
+    x[2 * i + 1] = glyphs[i].y;
+  }
+  return x;
+};
+
+const applyVarying = (x: Float64Array) => {
+  for (let i = 0; i < glyphs.length; ++i) {
+    glyphs[i].x = x[2 * i];
+    glyphs[i].y = x[2 * i + 1];
+  }
+};
+
+let state: lbfgs.State | undefined = undefined;
+
 const glyph = (letter: string, color: string, x: number, y: number) => {
   ctx.fillStyle = color;
   ctx.save();
@@ -221,42 +294,29 @@ const glyph = (letter: string, color: string, x: number, y: number) => {
   ctx.fill();
 };
 
-const draw = () => {
+const frame = () => {
+  if (selected === undefined) {
+    if (state === undefined) {
+      const x = getVarying();
+      state = lbfgs.firstStep(cfg, optimizer, x);
+      applyVarying(x);
+    } else {
+      const x = getVarying();
+      lbfgs.stepUntil(cfg, optimizer, x, state, () => null);
+      applyVarying(x);
+    }
+  } else state = undefined;
+
   const { width, height } = canvas;
   ctx.resetTransform();
   ctx.clearRect(0, 0, width, height);
   ctx.scale(ratio, ratio);
 
-  const {
-    d: distance,
-    x: gradX,
-    y: gradY,
-  } = sdfs.get(`lower_alpha-lower_beta`)!(
-    (betaX - alphaX) * scale,
-    (alphaY - betaY) * scale,
-  );
+  for (let i = 0; i < glyphs.length; ++i) {
+    const { key, x, y } = glyphs[i];
+    glyph(key, selected === i ? "red" : "black", x / scale, y / scale);
+  }
 
-  ctx.fillStyle = "black";
-  ctx.font = "50px sans-serif";
-  ctx.fillText(`distance: ${distance / scale}`, 10, 50);
-
-  glyph("lower_alpha", selected === "alpha" ? "red" : "black", alphaX, alphaY);
-  glyph("lower_beta", selected === "beta" ? "red" : "black", betaX, betaY);
-
-  ctx.strokeStyle = "green";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(alphaX, alphaY);
-  ctx.lineTo(alphaX - gradX * 20, alphaY + gradY * 20);
-  ctx.stroke();
-
-  ctx.strokeStyle = "green";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(betaX, betaY);
-  ctx.lineTo(betaX + gradX * 20, betaY - gradY * 20);
-  ctx.stroke();
-
-  window.requestAnimationFrame(draw);
+  window.requestAnimationFrame(frame);
 };
-window.requestAnimationFrame(draw);
+window.requestAnimationFrame(frame);
