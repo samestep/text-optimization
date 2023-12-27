@@ -96,72 +96,65 @@ const touch = (e: TouchEvent) => {
 canvas.ontouchstart = touch;
 canvas.ontouchmove = touch;
 
-(async () => {
-  const polygons = new Map<string, Vec2[]>();
-  for (const letter of letters.trimEnd().split("\n")) {
-    const text = await (
-      await fetch(new URL(`./polygons/${letter}.dat`, import.meta.url))
-    ).text();
-    polygons.set(letter, parseDat(text));
-  }
+const polygons = new Map<string, Vec2[]>();
+for (const letter of letters.trimEnd().split("\n")) {
+  const text = await (
+    await fetch(new URL(`./polygons/${letter}.dat`, import.meta.url))
+  ).text();
+  polygons.set(letter, parseDat(text));
+}
 
-  const pairs = new Map<string, Vec2[]>();
-  for (const a of ["lower_alpha"]) {
-    for (const b of ["lower_beta"]) {
-      pairs.set(
-        `${a}-${b}`,
-        parseDat(
-          await (await fetch(`/text-optimization/pairs/${a}-${b}.dat`)).text(),
-        ),
-      );
-    }
-  }
-
-  const ctx = canvas.getContext("2d")!;
-
-  const polygon = (points: Vec2[]) => {
-    ctx.beginPath();
-    ctx.moveTo(...points[0]);
-    for (const point of points.slice(1)) {
-      ctx.lineTo(...point);
-    }
-    ctx.closePath();
-  };
-
-  const scale = 10;
-
-  const glyph = (letter: string, color: string, x: number, y: number) => {
-    const points = polygons.get(letter)!;
-    ctx.fillStyle = color;
-    polygon(points.map(([dx, dy]) => [x + dx / scale, y - dy / scale]));
-    ctx.fill();
-  };
-
-  const draw = () => {
-    const { width, height } = canvas;
-    ctx.resetTransform();
-    ctx.clearRect(0, 0, width, height);
-    ctx.scale(ratio, ratio);
-
-    const distance =
-      sdPolygon(pairs.get(`lower_alpha-lower_beta`)!, [
-        (betaX - alphaX) * scale,
-        (alphaY - betaY) * scale,
-      ]) / scale;
-
-    ctx.fillStyle = "black";
-    ctx.font = "50px sans-serif";
-    ctx.fillText(`distance: ${distance}`, 10, 50);
-
-    glyph(
-      "lower_alpha",
-      selected === "alpha" ? "red" : "black",
-      alphaX,
-      alphaY,
+const pairs = new Map<string, Vec2[]>();
+for (const a of ["lower_alpha"]) {
+  for (const b of ["lower_beta"]) {
+    pairs.set(
+      `${a}-${b}`,
+      parseDat(
+        await (await fetch(`/text-optimization/pairs/${a}-${b}.dat`)).text(),
+      ),
     );
-    glyph("lower_beta", selected === "beta" ? "red" : "black", betaX, betaY);
+  }
+}
 
-    window.requestAnimationFrame(draw);
-  };
+const ctx = canvas.getContext("2d")!;
+
+const polygon = (points: Vec2[]) => {
+  ctx.beginPath();
+  ctx.moveTo(...points[0]);
+  for (const point of points.slice(1)) {
+    ctx.lineTo(...point);
+  }
+  ctx.closePath();
+};
+
+const scale = 10;
+
+const glyph = (letter: string, color: string, x: number, y: number) => {
+  const points = polygons.get(letter)!;
+  ctx.fillStyle = color;
+  polygon(points.map(([dx, dy]) => [x + dx / scale, y - dy / scale]));
+  ctx.fill();
+};
+
+const draw = () => {
+  const { width, height } = canvas;
+  ctx.resetTransform();
+  ctx.clearRect(0, 0, width, height);
+  ctx.scale(ratio, ratio);
+
+  const distance =
+    sdPolygon(pairs.get(`lower_alpha-lower_beta`)!, [
+      (betaX - alphaX) * scale,
+      (alphaY - betaY) * scale,
+    ]) / scale;
+
+  ctx.fillStyle = "black";
+  ctx.font = "50px sans-serif";
+  ctx.fillText(`distance: ${distance}`, 10, 50);
+
+  glyph("lower_alpha", selected === "alpha" ? "red" : "black", alphaX, alphaY);
+  glyph("lower_beta", selected === "beta" ? "red" : "black", betaX, betaY);
+
   window.requestAnimationFrame(draw);
-})();
+};
+window.requestAnimationFrame(draw);
