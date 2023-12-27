@@ -5,6 +5,7 @@
   "dependencies": {
     "mathjax": "^3",
     "parse-svg-path": "^0.1",
+    "rose": "^0.4",
     "svg-parser": "^2"
   },
   "devDependencies": {
