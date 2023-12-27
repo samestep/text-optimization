@@ -3,7 +3,6 @@ import {
   Fn,
   Real,
   Vec,
-  abs,
   add,
   and,
   compile,
@@ -25,9 +24,46 @@ import * as lbfgs from "./lbfgs.js";
 import paths from "./paths.json";
 import safe from "./safe.txt?raw";
 
+const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+const ctx = canvas.getContext("2d")!;
+
+const ratio = window.devicePixelRatio;
+const setSize = () => {
+  const html = document.documentElement;
+  const width = html.clientWidth;
+  const height = html.clientHeight;
+  const w = width * ratio;
+  const h = height * ratio;
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+};
+setSize();
+window.onresize = setSize;
+
+ctx.font = "100px sans-serif";
+ctx.fillText("loading...", 100, 200);
+
 let letters = safe.trimEnd().split("\n");
 // right now we can't handle all the letters at once, it would crash :(
-letters = ["lower_alpha", "lower_beta", "lower_gamma"];
+letters = [
+  "lower_alpha",
+  "lower_beta",
+  "lower_gamma",
+  "lower_delta",
+  "lower_varepsilon",
+  "lower_zeta",
+  "lower_eta",
+  "lower_theta",
+  "lower_iota",
+  "lower_kappa",
+  "lower_lambda",
+  "lower_mu",
+  "lower_nu",
+];
+
+const max = (a: Real, b: Real) => select(gt(a, b), Real, a, b);
 
 const min = (a: Real, b: Real) => select(lt(a, b), Real, a, b);
 
@@ -74,31 +110,7 @@ const parseDat = (text: string): Vec2[] =>
     .slice(1)
     .map((line) => line.split(" ").map(parseFloat) as Vec2);
 
-const ratio = window.devicePixelRatio;
-
-const canvas = document.getElementById("canvas") as HTMLCanvasElement;
-
-const setSize = () => {
-  const html = document.documentElement;
-  const width = html.clientWidth;
-  const height = html.clientHeight;
-  const w = width * ratio;
-  const h = height * ratio;
-  canvas.width = w;
-  canvas.height = h;
-  canvas.style.width = `${width}px`;
-  canvas.style.height = `${height}px`;
-};
-setSize();
-window.onresize = setSize;
-
-let selected: number | undefined = 0;
-
-window.onkeydown = ({ key }) => {
-  const n = parseInt(key);
-  if (Number.isInteger(n) && n < glyphs.length) selected = n;
-  else if (key === " ") selected = undefined;
-};
+let selected: number | undefined = undefined;
 
 interface Glyph {
   key: string;
@@ -109,44 +121,24 @@ interface Glyph {
 const scale = 10;
 
 const glyphs: Glyph[] = [
-  {
-    key: "lower_alpha",
-    x: 1000,
-    y: 2000,
-  },
-  {
-    key: "lower_beta",
-    x: 2000,
-    y: 2000,
-  },
-  {
-    key: "lower_gamma",
-    x: 3000,
-    y: 2000,
-  },
+  { y: 1000, key: "lower_alpha", x: 500 },
+  { y: 1000, key: "lower_beta", x: 1500 },
+  { y: 1000, key: "lower_gamma", x: 2500 },
+
+  { y: 2000, key: "lower_delta", x: 500 },
+  { y: 2000, key: "lower_varepsilon", x: 1500 },
+  { y: 2000, key: "lower_zeta", x: 2500 },
+
+  { y: 3000, key: "lower_eta", x: 500 },
+  { y: 3000, key: "lower_theta", x: 1500 },
+  { y: 3000, key: "lower_iota", x: 2500 },
+
+  { y: 4000, key: "lower_kappa", x: 500 },
+  { y: 4000, key: "lower_lambda", x: 1500 },
+  { y: 4000, key: "lower_mu", x: 2500 },
+
+  { y: 5000, key: "lower_nu", x: 500 },
 ];
-
-const move = (x: number, y: number) => {
-  if (selected === undefined) return;
-  glyphs[selected].x = x * scale;
-  glyphs[selected].y = y * scale;
-};
-
-const mouse = (e: MouseEvent) => {
-  if (e.buttons & 1) move(e.offsetX, e.offsetY);
-};
-
-canvas.onmousedown = mouse;
-canvas.onmousemove = mouse;
-
-const touch = (e: TouchEvent) => {
-  e.preventDefault();
-  const touch = e.touches[0];
-  move(touch.clientX, touch.clientY);
-};
-
-canvas.ontouchstart = touch;
-canvas.ontouchmove = touch;
 
 const sdfs = new Map<string, Fn & ((x: Real, y: Real) => Real)>();
 for (let i = 0; i < letters.length; ++i) {
@@ -164,17 +156,30 @@ for (let i = 0; i < letters.length; ++i) {
   }
 }
 
+const gap = 100;
+
 const lagrangian = fn([Vec(glyphs.length, Vec(2, Real))], Real, (positions) => {
   let sum: Real = 0;
+  const pairs: Real[][] = glyphs.map(() => []);
   for (let i = 0; i < glyphs.length; ++i) {
     for (let j = i + 1; j < glyphs.length; ++j) {
       const f = sdfs.get(`${glyphs[i].key}-${glyphs[j].key}`)!;
       const [ax, ay] = positions[i];
       const [bx, by] = positions[j];
+
       const z = f(sub(bx, ax), sub(ay, by));
-      const w = abs(sub(z, 100));
+      pairs[i][j] = z;
+      pairs[j][i] = z;
+
+      const w = max(0, sub(gap, z));
       sum = add(sum, mul(w, w));
     }
+  }
+  for (let i = 0; i < glyphs.length; ++i) {
+    const j = (i + 1) % glyphs.length;
+    const z = pairs[i][j];
+    const w = max(0, sub(z, gap));
+    sum = add(sum, mul(w, w));
   }
   return sum;
 });
@@ -188,8 +193,6 @@ const gradient = await compile(
     },
   ),
 );
-
-const ctx = canvas.getContext("2d")!;
 
 type Segment = [string, ...number[]];
 
@@ -276,13 +279,64 @@ const getVarying = (): Float64Array => {
 };
 
 const applyVarying = (x: Float64Array) => {
+  // save selected position
+  const { x: sx, y: sy } =
+    selected === undefined ? { x: NaN, y: NaN } : glyphs[selected];
+
   for (let i = 0; i < glyphs.length; ++i) {
     glyphs[i].x = x[2 * i];
     glyphs[i].y = x[2 * i + 1];
   }
+
+  // restore selected position
+  if (selected !== undefined) {
+    glyphs[selected!].x = sx;
+    glyphs[selected!].y = sy;
+  }
 };
 
 let state: lbfgs.State | undefined = undefined;
+
+const move = (x: number, y: number) => {
+  if (selected === undefined) return;
+  state = undefined;
+  glyphs[selected].x = x * scale;
+  glyphs[selected].y = y * scale;
+};
+
+const choose = (x: number, y: number) => {
+  // set `selected` to the index of the closest glyph to (x, y)
+  let min = Infinity;
+  let best: number | undefined = undefined;
+  for (let i = 0; i < glyphs.length; ++i) {
+    const { x: gx, y: gy } = glyphs[i];
+    const d = (x * scale - gx) ** 2 + (y * scale - gy) ** 2;
+    if (d < min) {
+      min = d;
+      best = i;
+    }
+  }
+  selected = best;
+  move(x, y);
+};
+
+canvas.onmousedown = (e: MouseEvent) => {
+  if (e.buttons & 1) choose(e.offsetX, e.offsetY);
+};
+canvas.onmousemove = (e: MouseEvent) => {
+  if (e.buttons & 1) move(e.offsetX, e.offsetY);
+};
+
+canvas.ontouchstart = (e: TouchEvent) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  choose(touch.clientX, touch.clientY);
+};
+canvas.ontouchmove = (e: TouchEvent) => {
+  e.preventDefault();
+  const touch = e.touches[0];
+  move(touch.clientX, touch.clientY);
+};
 
 const glyph = (letter: string, color: string, x: number, y: number) => {
   ctx.fillStyle = color;
@@ -295,17 +349,15 @@ const glyph = (letter: string, color: string, x: number, y: number) => {
 };
 
 const frame = () => {
-  if (selected === undefined) {
-    if (state === undefined) {
-      const x = getVarying();
-      state = lbfgs.firstStep(cfg, optimizer, x);
-      applyVarying(x);
-    } else {
-      const x = getVarying();
-      lbfgs.stepUntil(cfg, optimizer, x, state, () => null);
-      applyVarying(x);
-    }
-  } else state = undefined;
+  if (state === undefined) {
+    const x = getVarying();
+    state = lbfgs.firstStep(cfg, optimizer, x);
+    applyVarying(x);
+  } else {
+    const x = getVarying();
+    lbfgs.stepUntil(cfg, optimizer, x, state, () => null);
+    applyVarying(x);
+  }
 
   const { width, height } = canvas;
   ctx.resetTransform();
