@@ -50,12 +50,14 @@ const paths: Record<string, Segment[]> = JSON.parse(
   await Bun.file("paths.json").text(),
 );
 
+const round = (x: number): string => `${Math.round(1000 * x)}`;
+
 const dir = "polygons";
 await mkdir(dir, { recursive: true });
 for (const [key, path] of Object.entries(paths)) {
   const poly = polygonize(path);
   const lines = [`${poly.length}`];
   // CGAL only likes integers apparently
-  for (const [x, y] of poly) lines.push(`${Math.round(x)} ${Math.round(y)}`);
+  for (const [x, y] of poly) lines.push(`${round(x)} ${round(y)}`);
   await Bun.write(`${dir}/${key}.dat`, lines.join("\n"));
 }
