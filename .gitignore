@@ -1,11 +1,6 @@
 .DS_Store
 /build/
-/dist/
-/polygons.json
+/pairs/
+/paths.json
 /polygons/
-/public/
-/requirements
-/src/paths.json
-/src/safe.txt
-/svgs/
 node_modules/

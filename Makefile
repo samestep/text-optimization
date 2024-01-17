@@ -1,25 +1,16 @@
 .PHONY: all
-all: src/paths.json public/pairs src/safe.txt
+all: pairs
 
 node_modules: package.json bun.lockb
 	bun install
 	touch node_modules
 
-common := scripts/common.ts letters.json
+paths.json: node_modules scripts/paths.ts svgs
+	scripts/paths.ts
 
-svgs: node_modules $(common) scripts/latexToSVG.ts
-	rm -rf svgs
-	scripts/latexToSVG.ts
-
-src/paths.json: node_modules $(common) scripts/parseSVG.ts svgs
-	scripts/parseSVG.ts
-
-polygons.json: $(common) scripts/polygonize.ts src/paths.json
-	scripts/polygonize.ts
-
-polygons: scripts/cgalize.ts polygons.json
+polygons: scripts/polygons.ts paths.json
 	rm -rf polygons
-	scripts/cgalize.ts
+	scripts/polygons.ts
 
 build/Makefile: CMakeLists.txt
 	mkdir -p build
@@ -29,13 +20,6 @@ build/minkowski_diff: build/Makefile minkowski_diff.cpp
 	cd build && $(MAKE)
 	touch build/minkowski_diff
 
-public/pairs: $(common) build/minkowski_diff polygons
-	rm -rf public/pairs
-	scripts/minkowskiPairs.ts
-
-requirements: requirements.txt
-	pip install -r requirements.txt
-	touch requirements
-
-src/safe.txt: requirements subset.py letters.json public/pairs
-	./subset.py > src/safe.txt
+pairs: scripts/pairs.ts build/minkowski_diff polygons
+	rm -rf pairs
+	scripts/pairs.ts

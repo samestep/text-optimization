@@ -12,9 +12,3 @@ brew install cgal
 ```sh
 make
 ```
-
-## Run
-
-```sh
-bun run dev
-```

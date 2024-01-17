@@ -1,16 +1,13 @@
 #!/usr/bin/env bun
 
-import * as fs from "node:fs";
-import { strings } from "./common.js";
+import { mkdir } from "fs/promises";
 
-const dir = "public/pairs";
-fs.mkdirSync(dir, { recursive: true });
-
-for (const a of strings.keys()) {
-  for (const b of strings.keys()) {
+const keys = Object.keys(JSON.parse(await Bun.file("paths.json").text()));
+const dir = "pairs";
+mkdir(dir, { recursive: true });
+for (const a of keys) {
+  for (const b of keys) {
     console.log(`${a}-${b}`);
-
-    // run the command `./minkowski_diff ${a} ${b} > public/pairs/${a}-${b}.dat`
     const proc = Bun.spawn([
       "build/minkowski_diff",
       `polygons/${a}.dat`,
