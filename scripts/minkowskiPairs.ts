@@ -12,7 +12,7 @@ for (const a of strings.keys()) {
 
     // run the command `./minkowski_diff ${a} ${b} > public/pairs/${a}-${b}.dat`
     const proc = Bun.spawn([
-      "./minkowski_diff",
+      "build/minkowski_diff",
       `polygons/${a}.dat`,
       `polygons/${b}.dat`,
     ]);

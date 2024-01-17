@@ -1,24 +1,20 @@
 # Text optimization
 
-Prerequisites:
+## Prerequisites
 
 ```sh
 curl -fsSL https://bun.sh/install | bash
 brew install cgal
 ```
 
-Configure:
+## Build
 
 ```sh
-bun install
-cmake -DCMAKE_BUILD_TYPE=Release .
-pip install -r requirements.txt
+make
 ```
 
-Build and run:
+## Run
 
 ```sh
-./build.sh  # fast
-./run.sh    # slow
-./reduce.sh # fast
+bun run dev
 ```
