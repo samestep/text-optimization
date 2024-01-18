@@ -1,5 +1,5 @@
 # Text optimization
 
 ```sh
-make
+cargo run --release
 ```
