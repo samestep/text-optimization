@@ -14,6 +14,7 @@ polygons: scripts/polygons.ts paths.json
 
 target/release/text-optimization: Cargo.toml Cargo.lock src/*
 	cargo build --release
+	touch target/release/text-optimization
 
 pairs: scripts/pairs.ts target/release/text-optimization polygons
 	rm -rf pairs
