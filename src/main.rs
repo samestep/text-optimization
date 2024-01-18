@@ -98,7 +98,10 @@ fn polygonize(path: &str) -> Polygon {
                     p2: (x2, y2),
                     p3: (x, y),
                 };
-                points.push(curve.at(1. / 2.));
+                points.push(curve.at(1. / 5.));
+                points.push(curve.at(2. / 5.));
+                points.push(curve.at(3. / 5.));
+                points.push(curve.at(4. / 5.));
                 points.push((x, y));
                 (x0, y0) = (x, y);
             }
