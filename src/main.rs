@@ -1,4 +1,4 @@
-use minkowski::{extract_loops, reduced_convolution};
+use minkowski::{extract_loops, reduced_convolution, Point};
 use std::{
     fmt,
     fs::{create_dir_all, File},
@@ -6,6 +6,38 @@ use std::{
     path::Path,
 };
 use svgtypes::PathParser;
+
+fn add((x1, y1): Point, (x2, y2): Point) -> Point {
+    (x1 + x2, y1 + y2)
+}
+
+fn mul(c: f64, (x, y): Point) -> Point {
+    (c * x, c * y)
+}
+
+struct Bezier {
+    p0: Point,
+    p1: Point,
+    p2: Point,
+    p3: Point,
+}
+
+impl Bezier {
+    fn at(&self, t: f64) -> Point {
+        let &Self { p0, p1, p2, p3 } = self;
+        // https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Cubic_B%C3%A9zier_curves
+        let t2 = t * t;
+        let t3 = t2 * t;
+        let s = 1. - t;
+        let s2 = s * s;
+        let s3 = s2 * s;
+        let mut p = mul(s3, p0);
+        p = add(p, mul(3. * s2 * t, p1));
+        p = add(p, mul(3. * s * t2, p2));
+        p = add(p, mul(t3, p3));
+        p
+    }
+}
 
 const GLYPHS: [(char, &str); 7] = [
     ('A', "M0.624 191L69.44 0.599987H121.936L190.752 191H148.048L135.808 155.368H55.568L43.328 191H0.624ZM65.904 125.176H125.472L96.912 42.216H94.464L65.904 125.176Z"),
@@ -17,11 +49,11 @@ const GLYPHS: [(char, &str); 7] = [
     ('S', "M79.988 195.72C30.756 195.72 0.564 172.6 0.564 130.712H42.724C43.54 147.848 53.876 161.992 80.26 161.992C101.748 161.992 114.26 152.744 114.26 137.24C114.26 124.184 105.284 118.2 87.876 114.664L61.22 109.224C31.028 103.512 5.732 89.912 5.732 55.912C5.732 19.192 35.38 0.151986 79.172 0.151986C123.78 0.151986 152.34 19.736 152.34 58.904H110.452C110.996 41.768 97.124 33.88 78.356 33.88C56.324 33.88 48.436 44.76 48.436 55.912C48.436 64.616 53.876 73.048 71.012 76.584L95.492 81.48C140.372 90.728 157.508 108.136 157.508 136.968C157.508 178.04 123.508 195.72 79.988 195.72Z"),
 ];
 const BIG: char = 'S';
-const WIDTH: f64 = 158.0;
-const HEIGHT: f64 = 196.0;
+const WIDTH: f64 = 158.;
+const HEIGHT: f64 = 196.;
 const SCALE: f64 = 0.05;
 
-type Polygon = Vec<(f64, f64)>;
+type Polygon = Vec<Point>;
 
 fn polygonize(path: &str) -> Polygon {
     let mut points = vec![];
@@ -52,14 +84,21 @@ fn polygonize(path: &str) -> Polygon {
             }
             CurveTo {
                 abs,
-                x1: _,
-                y1: _,
-                x2: _,
-                y2: _,
+                x1,
+                y1,
+                x2,
+                y2,
                 x,
                 y,
             } => {
                 assert!(abs);
+                let curve = Bezier {
+                    p0: (x0, y0),
+                    p1: (x1, y1),
+                    p2: (x2, y2),
+                    p3: (x, y),
+                };
+                points.push(curve.at(1. / 2.));
                 points.push((x, y));
                 (x0, y0) = (x, y);
             }
@@ -75,7 +114,7 @@ fn polygonize(path: &str) -> Polygon {
     panic!()
 }
 
-fn polygon(w: &mut impl fmt::Write, points: &[(f64, f64)]) -> fmt::Result {
+fn polygon(w: &mut impl fmt::Write, points: &[Point]) -> fmt::Result {
     let x0 = points.iter().map(|&(x, _)| x).reduce(f64::min).unwrap();
     let y0 = points.iter().map(|&(_, y)| y).reduce(f64::min).unwrap();
     writeln!(
@@ -153,11 +192,21 @@ fn main() {
     let dir = Path::new("out");
     create_dir_all(dir).unwrap();
 
+    for (i, p) in polygons.iter().enumerate() {
+        let (c, _) = GLYPHS[i];
+        let mut s = String::new();
+        polygon(&mut s, p).unwrap();
+        File::create(dir.join(format!("{c}.svg")))
+            .unwrap()
+            .write_all(s.as_bytes())
+            .unwrap();
+    }
+
     for (i, contain) in contains.iter().enumerate() {
         let (c, _) = GLYPHS[i];
         let mut s = String::new();
         polygon(&mut s, contain).unwrap();
-        File::create(dir.join(format!("{c}.svg")))
+        File::create(dir.join(format!("{BIG}c-{c}.svg")))
             .unwrap()
             .write_all(s.as_bytes())
             .unwrap();
