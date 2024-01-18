@@ -1,7 +1,6 @@
 .DS_Store
-/.vscode/settings.json
-/build/
 /pairs/
 /paths.json
 /polygons/
+/target/
 node_modules/

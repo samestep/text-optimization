@@ -9,7 +9,7 @@ for (const a of keys) {
   for (const b of keys) {
     console.log(`${a}-${b}`);
     const proc = Bun.spawn([
-      "build/minkowski_diff",
+      "target/release/text-optimization",
       `polygons/${a}.dat`,
       `polygons/${b}.dat`,
     ]);

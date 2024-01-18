@@ -12,14 +12,9 @@ polygons: scripts/polygons.ts paths.json
 	rm -rf polygons
 	scripts/polygons.ts
 
-build/Makefile: CMakeLists.txt
-	mkdir -p build
-	cd build && cmake -DCMAKE_BUILD_TYPE=Release ..
+target/release/text-optimization: Cargo.toml Cargo.lock src/*
+	cargo build --release
 
-build/minkowski_diff: build/Makefile minkowski_diff.cpp
-	cd build && $(MAKE)
-	touch build/minkowski_diff
-
-pairs: scripts/pairs.ts build/minkowski_diff polygons
+pairs: scripts/pairs.ts target/release/text-optimization polygons
 	rm -rf pairs
 	scripts/pairs.ts
