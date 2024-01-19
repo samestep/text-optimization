@@ -1,4 +1,6 @@
 use minkowski::{extract_loops, reduced_convolution, Point};
+use rand::{Rng, SeedableRng};
+use rand_pcg::Pcg64Mcg;
 use std::{
     fmt,
     fs::{create_dir_all, File},
@@ -117,6 +119,23 @@ fn polygonize(path: &str) -> Polygon {
     panic!()
 }
 
+struct Glyph {
+    i: usize,
+    x: f64,
+    y: f64,
+}
+
+fn init(seed: u64) -> Vec<Glyph> {
+    let mut rng = Pcg64Mcg::seed_from_u64(seed);
+    (0..100)
+        .map(|_| Glyph {
+            i: rng.gen_range(0..GLYPHS.len()),
+            x: rng.gen_range(0.0..=WIDTH),
+            y: rng.gen_range(0.0..=HEIGHT),
+        })
+        .collect()
+}
+
 fn polygon(w: &mut impl fmt::Write, points: &[Point]) -> fmt::Result {
     let x0 = points.iter().map(|&(x, _)| x).reduce(f64::min).unwrap();
     let y0 = points.iter().map(|&(_, y)| y).reduce(f64::min).unwrap();
@@ -136,22 +155,19 @@ fn polygon(w: &mut impl fmt::Write, points: &[Point]) -> fmt::Result {
     Ok(())
 }
 
-fn arrangement(w: &mut impl fmt::Write) -> fmt::Result {
+fn arrangement(w: &mut impl fmt::Write, glyphs: &[Glyph]) -> fmt::Result {
     let &(_, big) = GLYPHS.iter().find(|&&(c, _)| c == BIG).unwrap();
     writeln!(
         w,
-        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {} {}">"#,
-        WIDTH, HEIGHT
+        r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}">"#,
     )?;
-    writeln!(w, r#"  <path fill="grey" d="{}" />"#, big)?;
-    for (i, &(_, path)) in GLYPHS.iter().enumerate() {
+    writeln!(w, r#"  <path fill="grey" d="{big}" />"#)?;
+    for &Glyph { i, x, y } in glyphs.iter() {
+        let (_, path) = GLYPHS[i];
         writeln!(
             w,
-            r#"  <path transform="translate({} 0) scale({} {})" d="{}" />"#,
-            20 * i,
-            SCALE,
-            SCALE,
-            path,
+            r#"  <path transform="translate({x} {y}) scale({SCALE} {SCALE})" d="{}" />"#,
+            path
         )?;
     }
     writeln!(w, "</svg>")?;
@@ -233,10 +249,12 @@ fn main() {
         }
     }
 
+    let glyphs = init(0);
+
     let dir_frames = dir.join("frames");
     create_dir_all(&dir_frames).unwrap();
     let mut s = String::new();
-    arrangement(&mut s).unwrap();
+    arrangement(&mut s, &glyphs).unwrap();
     File::create(dir_frames.join("0.svg"))
         .unwrap()
         .write_all(s.as_bytes())

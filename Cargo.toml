@@ -6,4 +6,6 @@ edition = "2021"
 
 [dependencies]
 minkowski = "0.1"
+rand = "0.8"
+rand_pcg = "0.3"
 svgtypes = "0.13"
