@@ -121,6 +121,7 @@ fn polygonize(path: &str) -> Polygon {
 
 struct Glyph {
     i: usize,
+    h: f64,
     x: f64,
     y: f64,
 }
@@ -130,6 +131,7 @@ fn init(seed: u64) -> Vec<Glyph> {
     (0..100)
         .map(|_| Glyph {
             i: rng.gen_range(0..GLYPHS.len()),
+            h: rng.gen_range(0.0..360.0),
             x: rng.gen_range(0.0..=WIDTH),
             y: rng.gen_range(0.0..=HEIGHT),
         })
@@ -155,19 +157,50 @@ fn polygon(w: &mut impl fmt::Write, points: &[Point]) -> fmt::Result {
     Ok(())
 }
 
+// https://github.com/penrose/penrose/blob/7c1978f4e33498828d6893d7d8f9257d2f1f839b/packages/core/src/utils/Util.ts#L415-L450
+fn hsv_to_rgb(h0: f64, s0: f64, v0: f64) -> (f64, f64, f64) {
+    fn hsv2rgb(r1: f64, g1: f64, b1: f64, m: f64) -> (f64, f64, f64) {
+        (255. * (r1 + m), 255. * (g1 + m), 255. * (b1 + m))
+    }
+
+    let h = (h0 % 360.) + if h0 < 0. { 360. } else { 0. };
+    let s = s0 / 100.0;
+    let v = v0 / 100.0;
+    let c = v * s;
+    let x = c * (1. - (((h / 60.) % 2.) - 1.).abs());
+    let m = v - c;
+
+    if h < 60. {
+        hsv2rgb(c, x, 0., m)
+    } else if h < 120. {
+        hsv2rgb(x, c, 0., m)
+    } else if h < 180. {
+        hsv2rgb(0., c, x, m)
+    } else if h < 240. {
+        hsv2rgb(0., x, c, m)
+    } else if h < 300. {
+        hsv2rgb(x, 0., c, m)
+    } else {
+        hsv2rgb(c, 0., x, m)
+    }
+}
+
 fn arrangement(w: &mut impl fmt::Write, glyphs: &[Glyph]) -> fmt::Result {
     let &(_, big) = GLYPHS.iter().find(|&&(c, _)| c == BIG).unwrap();
     writeln!(
         w,
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}">"#,
     )?;
-    writeln!(w, r#"  <path fill="grey" d="{big}" />"#)?;
-    for &Glyph { i, x, y } in glyphs.iter() {
+    writeln!(w, r##"  <path fill="#C1C1C1" d="{big}" />"##)?;
+    for &Glyph { i, h, x, y } in glyphs.iter() {
         let (_, path) = GLYPHS[i];
+        let (r, g, b) = hsv_to_rgb(h, 60., 100.);
         writeln!(
             w,
-            r#"  <path transform="translate({x} {y}) scale({SCALE} {SCALE})" d="{}" />"#,
-            path
+            r##"  <path paint-order="stroke" fill="rgb({r} {g} {b})" stroke="#080664" stroke-opacity="{}" stroke-width="{}" stroke-linejoin="round" transform="translate({x} {y}) scale({SCALE} {SCALE})" d="{}" />"##,
+            0xea as f64 / 255.,
+            1.5 / SCALE,
+            path,
         )?;
     }
     writeln!(w, "</svg>")?;
