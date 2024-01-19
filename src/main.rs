@@ -7,7 +7,7 @@ use std::{
     fmt,
     fs::{create_dir_all, File},
     io::Write as _,
-    ops::{Add, Mul, Sub},
+    ops::{Add, Div, Mul, Sub},
     path::Path,
 };
 use svgtypes::PathParser;
@@ -51,6 +51,14 @@ impl Mul<f64> for Vec2 {
 
     fn mul(self, rhs: f64) -> Vec2 {
         vec2(self.x * rhs, self.y * rhs)
+    }
+}
+
+impl Div<f64> for Vec2 {
+    type Output = Vec2;
+
+    fn div(self, rhs: f64) -> Vec2 {
+        vec2(self.x / rhs, self.y / rhs)
     }
 }
 
@@ -159,23 +167,39 @@ fn polygonize(path: &str) -> Polygon {
 // https://iquilezles.org/articles/distfunctions2d/
 fn sd_polygon(v: &[Vec2], p: Vec2) -> (f64, Vec2) {
     let n = v.len();
-    let mut d = dot(p - v[0], p - v[0]);
+    let u = p - v[0];
+    let mut d = dot(u, u);
+    let mut dp = 2. * u;
     let mut s = 1.0;
     let mut i = 0;
     let mut j = n - 1;
     while i < n {
         let e = v[j] - v[i];
         let w = p - v[i];
-        let b = w - e * (dot(w, e) / dot(e, e)).clamp(0.0, 1.0);
-        d = d.min(dot(b, b));
+        let we = dot(w, e);
+        let ee = dot(e, e);
+        let r = we / ee;
+        let rc = r.clamp(0.0, 1.0);
+        let b = w - e * rc;
+        let bb = dot(b, b);
+        if bb < d {
+            d = bb;
+            let db = 2. * b;
+            let drc = -dot(e, db);
+            let dr = if (0.0..=1.0).contains(&r) { drc } else { 0. };
+            let dwe = dr / ee;
+            let dw = db + dwe * e;
+            dp = dw;
+        }
         let c = [p.y >= v[i].y, p.y < v[j].y, e.x * w.y > e.y * w.x];
-        if c.iter().all(|&b| b) || c.iter().all(|&b| !b) {
+        if c.iter().all(|&a| a) || c.iter().all(|&a| !a) {
             s *= -1.0;
         }
         j = i;
         i += 1;
     }
-    (s * d.sqrt(), vec2(0., 0.))
+    let z = s * d.sqrt();
+    (z, dp / (2. * z))
 }
 
 struct Glyphs {
@@ -204,9 +228,15 @@ fn val_and_grad(sums: &Sums, indices: &[usize], coords: &[f64], grad: &mut [f64]
     grad.fill(0.);
     let n = indices.len();
     let (x, y) = coords.split_at(n);
+    let (dx, dy) = grad.split_at_mut(n);
     let mut fx = 0.;
     for i in 0..n {
-        fx += sd_polygon(&sums.contains[indices[i]], vec2(x[i], y[i])).0;
+        let (z, dp) = sd_polygon(&sums.contains[indices[i]], vec2(x[i], y[i]));
+        if z > 0. {
+            fx += z;
+            dx[i] += dp.x;
+            dy[i] += dp.y;
+        }
     }
     fx
 }
