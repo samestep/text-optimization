@@ -262,9 +262,9 @@ fn val_and_grad(sums: &Sums, indices: &[usize], coords: &[f64], grad: &mut [f64]
 fn optimize(
     sums: &Sums,
     mut glyphs: Glyphs,
-    mut callback: impl FnMut(&[usize], &[f64], &[f64]),
+    mut callback: impl FnMut(Option<&lbfgs::Info>, &[usize], &[f64], &[f64]),
 ) -> (Glyphs, f64) {
-    callback(&glyphs.indices, &glyphs.hues, &glyphs.coords);
+    callback(None, &glyphs.indices, &glyphs.hues, &glyphs.coords);
     let cfg = lbfgs::Config {
         m: 17,
         armijo: 0.001,
@@ -278,7 +278,7 @@ fn optimize(
         |coords, grad| val_and_grad(sums, &glyphs.indices, coords, grad),
         &mut glyphs.coords,
     );
-    callback(&glyphs.indices, &glyphs.hues, &glyphs.coords);
+    callback(None, &glyphs.indices, &glyphs.hues, &glyphs.coords);
     let mut fx = f64::NAN;
     lbfgs::step_until(
         cfg,
@@ -286,12 +286,11 @@ fn optimize(
         &mut glyphs.coords,
         &mut state,
         |info| {
-            callback(&glyphs.indices, &glyphs.hues, info.x);
+            callback(Some(&info), &glyphs.indices, &glyphs.hues, info.x);
             if info.fx == fx {
                 Some(())
             } else {
                 fx = info.fx;
-                println!("{fx}");
                 None
             }
         },
@@ -470,8 +469,11 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
             coords,
         },
         fx,
-    ) = optimize(sums, init(seed, n), |indices, hues, coords| {
+    ) = optimize(sums, init(seed, n), |info, indices, hues, coords| {
         if i.count_ones() < 2 {
+            if let Some(info) = info {
+                println!("i = {i}, fx = {}", info.fx);
+            }
             let mut s = String::new();
             arrangement(&mut s, indices, hues, coords).unwrap();
             File::create(dir_frames.join(format!("{i}.svg")))
@@ -482,6 +484,7 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
         i += 1;
     });
     i -= 1;
+    println!("i = {i}, fx = {fx}");
     let mut s = String::new();
     arrangement(&mut s, &indices, &hues, &coords).unwrap();
     File::create(dir_frames.join(format!("{i}.svg")))
@@ -494,5 +497,5 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
 fn main() {
     let dir = Path::new("out");
     let sums = get_sums(dir);
-    run(dir, &sums, 1, 60);
+    run(dir, &sums, 12, 80);
 }
