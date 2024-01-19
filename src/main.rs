@@ -320,7 +320,11 @@ fn polygon(w: &mut impl fmt::Write, points: &[Vec2]) -> fmt::Result {
 // https://github.com/penrose/penrose/blob/7c1978f4e33498828d6893d7d8f9257d2f1f839b/packages/core/src/utils/Util.ts#L415-L450
 fn hsv_to_rgb(h0: f64, s0: f64, v0: f64) -> (f64, f64, f64) {
     fn hsv2rgb(r1: f64, g1: f64, b1: f64, m: f64) -> (f64, f64, f64) {
-        (255. * (r1 + m), 255. * (g1 + m), 255. * (b1 + m))
+        (
+            (255. * (r1 + m)).round(),
+            (255. * (g1 + m)).round(),
+            (255. * (b1 + m)).round(),
+        )
     }
 
     let h = (h0 % 360.) + if h0 < 0. { 360. } else { 0. };
