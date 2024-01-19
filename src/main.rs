@@ -1,3 +1,5 @@
+mod lbfgs;
+
 use minkowski::{extract_loops, reduced_convolution, Point};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
@@ -5,27 +7,66 @@ use std::{
     fmt,
     fs::{create_dir_all, File},
     io::Write as _,
+    ops::{Add, Mul, Sub},
     path::Path,
 };
 use svgtypes::PathParser;
 
-fn add((x1, y1): Point, (x2, y2): Point) -> Point {
-    (x1 + x2, y1 + y2)
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Vec2 {
+    x: f64,
+    y: f64,
 }
 
-fn mul(c: f64, (x, y): Point) -> Point {
-    (c * x, c * y)
+fn vec2(x: f64, y: f64) -> Vec2 {
+    Vec2 { x, y }
+}
+
+impl Add for Vec2 {
+    type Output = Vec2;
+
+    fn add(self, rhs: Vec2) -> Vec2 {
+        vec2(self.x + rhs.x, self.y + rhs.y)
+    }
+}
+
+impl Sub for Vec2 {
+    type Output = Vec2;
+
+    fn sub(self, rhs: Vec2) -> Vec2 {
+        vec2(self.x - rhs.x, self.y - rhs.y)
+    }
+}
+
+impl Mul<Vec2> for f64 {
+    type Output = Vec2;
+
+    fn mul(self, rhs: Vec2) -> Vec2 {
+        vec2(self * rhs.x, self * rhs.y)
+    }
+}
+
+impl Mul<f64> for Vec2 {
+    type Output = Vec2;
+
+    fn mul(self, rhs: f64) -> Vec2 {
+        vec2(self.x * rhs, self.y * rhs)
+    }
+}
+
+fn dot(u: Vec2, v: Vec2) -> f64 {
+    u.x * v.x + u.y * v.y
 }
 
 struct Bezier {
-    p0: Point,
-    p1: Point,
-    p2: Point,
-    p3: Point,
+    p0: Vec2,
+    p1: Vec2,
+    p2: Vec2,
+    p3: Vec2,
 }
 
 impl Bezier {
-    fn at(&self, t: f64) -> Point {
+    fn at(&self, t: f64) -> Vec2 {
         let &Self { p0, p1, p2, p3 } = self;
         // https://en.wikipedia.org/wiki/B%C3%A9zier_curve#Cubic_B%C3%A9zier_curves
         let t2 = t * t;
@@ -33,11 +74,7 @@ impl Bezier {
         let s = 1. - t;
         let s2 = s * s;
         let s3 = s2 * s;
-        let mut p = mul(s3, p0);
-        p = add(p, mul(3. * s2 * t, p1));
-        p = add(p, mul(3. * s * t2, p2));
-        p = add(p, mul(t3, p3));
-        p
+        s3 * p0 + 3. * s2 * t * p1 + 3. * s * t2 * p2 + t3 * p3
     }
 }
 
@@ -55,7 +92,7 @@ const WIDTH: f64 = 158.;
 const HEIGHT: f64 = 196.;
 const SCALE: f64 = 1. / 15.;
 
-type Polygon = Vec<Point>;
+type Polygon = Vec<Vec2>;
 
 fn polygonize(path: &str) -> Polygon {
     let mut points = vec![];
@@ -66,22 +103,22 @@ fn polygonize(path: &str) -> Polygon {
         match segment.unwrap() {
             MoveTo { abs, x, y } => {
                 assert!(abs);
-                points.push((x, y));
+                points.push(vec2(x, y));
                 (x0, y0) = (x, y);
             }
             LineTo { abs, x, y } => {
                 assert!(abs);
-                points.push((x, y));
+                points.push(vec2(x, y));
                 (x0, y0) = (x, y);
             }
             HorizontalLineTo { abs, x } => {
                 assert!(abs);
-                points.push((x, y0));
+                points.push(vec2(x, y0));
                 x0 = x;
             }
             VerticalLineTo { abs, y } => {
                 assert!(abs);
-                points.push((x0, y));
+                points.push(vec2(x0, y));
                 y0 = y;
             }
             CurveTo {
@@ -95,16 +132,16 @@ fn polygonize(path: &str) -> Polygon {
             } => {
                 assert!(abs);
                 let curve = Bezier {
-                    p0: (x0, y0),
-                    p1: (x1, y1),
-                    p2: (x2, y2),
-                    p3: (x, y),
+                    p0: vec2(x0, y0),
+                    p1: vec2(x1, y1),
+                    p2: vec2(x2, y2),
+                    p3: vec2(x, y),
                 };
                 points.push(curve.at(1. / 5.));
                 points.push(curve.at(2. / 5.));
                 points.push(curve.at(3. / 5.));
                 points.push(curve.at(4. / 5.));
-                points.push((x, y));
+                points.push(vec2(x, y));
                 (x0, y0) = (x, y);
             }
             ClosePath { abs } => {
@@ -119,37 +156,108 @@ fn polygonize(path: &str) -> Polygon {
     panic!()
 }
 
-struct Glyph {
-    i: usize,
-    h: f64,
-    x: f64,
-    y: f64,
+// https://iquilezles.org/articles/distfunctions2d/
+fn sd_polygon(v: &[Vec2], p: Vec2) -> (f64, Vec2) {
+    let n = v.len();
+    let mut d = dot(p - v[0], p - v[0]);
+    let mut s = 1.0;
+    let mut i = 0;
+    let mut j = n - 1;
+    while i < n {
+        let e = v[j] - v[i];
+        let w = p - v[i];
+        let b = w - e * (dot(w, e) / dot(e, e)).clamp(0.0, 1.0);
+        d = d.min(dot(b, b));
+        let c = [p.y >= v[i].y, p.y < v[j].y, e.x * w.y > e.y * w.x];
+        if c.iter().all(|&b| b) || c.iter().all(|&b| !b) {
+            s *= -1.0;
+        }
+        j = i;
+        i += 1;
+    }
+    (s * d.sqrt(), vec2(0., 0.))
 }
 
-fn init(seed: u64) -> Vec<Glyph> {
+struct Glyphs {
+    indices: Vec<usize>,
+    hues: Vec<f64>,
+    coords: Vec<f64>,
+}
+
+fn init(seed: u64) -> Glyphs {
     let mut rng = Pcg64Mcg::seed_from_u64(seed);
-    (0..100)
-        .map(|_| Glyph {
-            i: rng.gen_range(0..GLYPHS.len()),
-            h: rng.gen_range(0.0..360.0),
-            x: rng.gen_range(0.0..=WIDTH),
-            y: rng.gen_range(0.0..=HEIGHT),
-        })
-        .collect()
+    let n = 100;
+    let mut coords: Vec<_> = (0..n).map(|_| rng.gen_range(0.0..WIDTH)).collect();
+    coords.extend((0..n).map(|_| rng.gen_range(0.0..HEIGHT)));
+    Glyphs {
+        indices: (0..n).map(|_| rng.gen_range(0..GLYPHS.len())).collect(),
+        hues: (0..n).map(|_| rng.gen_range(0.0..360.0)).collect(),
+        coords,
+    }
 }
 
-fn polygon(w: &mut impl fmt::Write, points: &[Point]) -> fmt::Result {
-    let x0 = points.iter().map(|&(x, _)| x).reduce(f64::min).unwrap();
-    let y0 = points.iter().map(|&(_, y)| y).reduce(f64::min).unwrap();
+struct Sums {
+    contains: Vec<Polygon>,
+}
+
+fn val_and_grad(sums: &Sums, indices: &[usize], coords: &[f64], grad: &mut [f64]) -> f64 {
+    grad.fill(0.);
+    let n = indices.len();
+    let (x, y) = coords.split_at(n);
+    let mut fx = 0.;
+    for i in 0..n {
+        fx += sd_polygon(&sums.contains[indices[i]], vec2(x[i], y[i])).0;
+    }
+    fx
+}
+
+fn optimize(sums: &Sums, mut glyphs: Glyphs, mut callback: impl FnMut(&[usize], &[f64], &[f64])) {
+    callback(&glyphs.indices, &glyphs.hues, &glyphs.coords);
+    let cfg = lbfgs::Config {
+        m: 17,
+        armijo: 0.001,
+        wolfe: 0.9,
+        min_interval: 1e-9,
+        max_steps: 10,
+        epsd: 1e-11,
+    };
+    let mut state = lbfgs::first_step(
+        cfg,
+        |coords, grad| val_and_grad(sums, &glyphs.indices, coords, grad),
+        &mut glyphs.coords,
+    );
+    callback(&glyphs.indices, &glyphs.hues, &glyphs.coords);
+    let mut fx = f64::NAN;
+    lbfgs::step_until(
+        cfg,
+        |coords, grad| val_and_grad(sums, &glyphs.indices, coords, grad),
+        &mut glyphs.coords,
+        &mut state,
+        |info| {
+            callback(&glyphs.indices, &glyphs.hues, info.x);
+            if info.fx == fx {
+                Some(())
+            } else {
+                println!("{}", info.fx);
+                fx = info.fx;
+                None
+            }
+        },
+    );
+}
+
+fn polygon(w: &mut impl fmt::Write, points: &[Vec2]) -> fmt::Result {
+    let x0 = points.iter().map(|v| v.x).reduce(f64::min).unwrap();
+    let y0 = points.iter().map(|v| v.y).reduce(f64::min).unwrap();
     writeln!(
         w,
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x0} {y0} {} {}">"#,
-        points.iter().map(|&(x, _)| x).reduce(f64::max).unwrap() - x0,
-        points.iter().map(|&(_, y)| y).reduce(f64::max).unwrap() - y0,
+        points.iter().map(|v| v.x).reduce(f64::max).unwrap() - x0,
+        points.iter().map(|v| v.y).reduce(f64::max).unwrap() - y0,
     )?;
-    let (x, y) = points[0];
+    let Vec2 { x, y } = points[0];
     write!(w, "  <polygon points=\"{x},{y}")?;
-    for (x, y) in &points[1..] {
+    for Vec2 { x, y } in &points[1..] {
         write!(w, " {x},{y}")?;
     }
     writeln!(w, "\" />")?;
@@ -185,21 +293,29 @@ fn hsv_to_rgb(h0: f64, s0: f64, v0: f64) -> (f64, f64, f64) {
     }
 }
 
-fn arrangement(w: &mut impl fmt::Write, glyphs: &[Glyph]) -> fmt::Result {
+fn arrangement(
+    w: &mut impl fmt::Write,
+    indices: &[usize],
+    hues: &[f64],
+    coords: &[f64],
+) -> fmt::Result {
+    let n = hues.len();
     let &(_, big) = GLYPHS.iter().find(|&&(c, _)| c == BIG).unwrap();
     writeln!(
         w,
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {WIDTH} {HEIGHT}">"#,
     )?;
     writeln!(w, r##"  <path fill="#C1C1C1" d="{big}" />"##)?;
-    for &Glyph { i, h, x, y } in glyphs.iter() {
-        let (_, path) = GLYPHS[i];
+    for (i, (&j, &h)) in indices.iter().zip(hues.iter()).enumerate() {
+        let (_, path) = GLYPHS[j];
         let (r, g, b) = hsv_to_rgb(h, 60., 100.);
         writeln!(
             w,
-            r##"  <path paint-order="stroke" fill="rgb({r} {g} {b})" stroke="#080664" stroke-opacity="{}" stroke-width="{}" stroke-linejoin="round" transform="translate({x} {y}) scale({SCALE} {SCALE})" d="{}" />"##,
+            r##"  <path paint-order="stroke" fill="rgb({r} {g} {b})" stroke="#080664" stroke-opacity="{}" stroke-width="{}" stroke-linejoin="round" transform="translate({} {}) scale({SCALE} {SCALE})" d="{}" />"##,
             0xea as f64 / 255.,
             1.5 / SCALE,
+            coords[i],
+            coords[n + i],
             path,
         )?;
     }
@@ -210,32 +326,39 @@ fn arrangement(w: &mut impl fmt::Write, glyphs: &[Glyph]) -> fmt::Result {
 fn main() {
     let polygons: Vec<Polygon> = GLYPHS.iter().map(|&(_, path)| polygonize(path)).collect();
 
-    let mut big = polygons[GLYPHS.iter().position(|&(c, _)| c == BIG).unwrap()].clone();
+    let mut big: Vec<Point> = polygons[GLYPHS.iter().position(|&(c, _)| c == BIG).unwrap()]
+        .iter()
+        .map(|&Vec2 { x, y }| (x, y))
+        .collect();
     big.reverse();
     let contains: Vec<Polygon> = polygons
         .iter()
         .map(|q| {
-            let mut q1 = q.clone();
-            for (x, y) in &mut q1 {
-                *x = SCALE * -*x;
-                *y = SCALE * -*y;
-            }
-            extract_loops(&reduced_convolution(&big, &q1)).swap_remove(0)
+            let q1: Vec<Point> = q
+                .iter()
+                .map(|&Vec2 { x, y }| (SCALE * -x, SCALE * -y))
+                .collect();
+            extract_loops(&reduced_convolution(&big, &q1))
+                .swap_remove(0)
+                .into_iter()
+                .map(|(x, y)| Vec2 { x, y })
+                .collect()
         })
         .collect();
 
     let pairs: Vec<Vec<Polygon>> = polygons
         .iter()
         .map(|p| {
+            let p1: Vec<Point> = p.iter().map(|&Vec2 { x, y }| (x, y)).collect();
             polygons
                 .iter()
                 .map(|q| {
-                    let mut q1 = q.clone();
-                    for (x, y) in &mut q1 {
-                        *x = -*x;
-                        *y = -*y;
-                    }
-                    extract_loops(&reduced_convolution(p, &q1)).swap_remove(0)
+                    let q1: Vec<Point> = q.iter().map(|&Vec2 { x, y }| (-x, -y)).collect();
+                    extract_loops(&reduced_convolution(&p1, &q1))
+                        .swap_remove(0)
+                        .into_iter()
+                        .map(|(x, y)| Vec2 { x, y })
+                        .collect()
                 })
                 .collect()
         })
@@ -282,14 +405,16 @@ fn main() {
         }
     }
 
-    let glyphs = init(0);
-
     let dir_frames = dir.join("frames");
     create_dir_all(&dir_frames).unwrap();
-    let mut s = String::new();
-    arrangement(&mut s, &glyphs).unwrap();
-    File::create(dir_frames.join("0.svg"))
-        .unwrap()
-        .write_all(s.as_bytes())
-        .unwrap();
+    let mut i = 0;
+    optimize(&Sums { contains }, init(0), |indices, hues, coords| {
+        let mut s = String::new();
+        arrangement(&mut s, indices, hues, coords).unwrap();
+        File::create(dir_frames.join(format!("{i}.svg")))
+            .unwrap()
+            .write_all(s.as_bytes())
+            .unwrap();
+        i += 1;
+    });
 }
