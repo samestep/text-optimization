@@ -53,7 +53,7 @@ const GLYPHS: [(char, &str); 7] = [
 const BIG: char = 'S';
 const WIDTH: f64 = 158.;
 const HEIGHT: f64 = 196.;
-const SCALE: f64 = 0.05;
+const SCALE: f64 = 1. / 15.;
 
 type Polygon = Vec<Point>;
 
