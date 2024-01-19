@@ -193,44 +193,51 @@ fn main() {
         .collect();
 
     let dir = Path::new("out");
-    create_dir_all(dir).unwrap();
 
+    let dir_polygons = dir.join("polygons");
+    create_dir_all(&dir_polygons).unwrap();
     for (i, p) in polygons.iter().enumerate() {
         let (c, _) = GLYPHS[i];
         let mut s = String::new();
         polygon(&mut s, p).unwrap();
-        File::create(dir.join(format!("{c}.svg")))
+        File::create(dir_polygons.join(format!("{c}.svg")))
             .unwrap()
             .write_all(s.as_bytes())
             .unwrap();
     }
 
+    let dir_contains = dir.join("contains");
+    create_dir_all(&dir_contains).unwrap();
     for (i, contain) in contains.iter().enumerate() {
         let (c, _) = GLYPHS[i];
         let mut s = String::new();
         polygon(&mut s, contain).unwrap();
-        File::create(dir.join(format!("{BIG}c-{c}.svg")))
+        File::create(dir_contains.join(format!("{BIG}c-{c}.svg")))
             .unwrap()
             .write_all(s.as_bytes())
             .unwrap();
     }
 
+    let dir_diffs = dir.join("diffs");
+    create_dir_all(&dir_diffs).unwrap();
     for (i, diffs) in pairs.iter().enumerate() {
         let (a, _) = GLYPHS[i];
         for (j, diff) in diffs.iter().enumerate() {
             let (b, _) = GLYPHS[j];
             let mut s = String::new();
             polygon(&mut s, diff).unwrap();
-            File::create(dir.join(format!("{a}-{b}.svg")))
+            File::create(dir_diffs.join(format!("{a}-{b}.svg")))
                 .unwrap()
                 .write_all(s.as_bytes())
                 .unwrap();
         }
     }
 
+    let dir_frames = dir.join("frames");
+    create_dir_all(&dir_frames).unwrap();
     let mut s = String::new();
     arrangement(&mut s).unwrap();
-    File::create(dir.join("glyphs.svg"))
+    File::create(dir_frames.join("0.svg"))
         .unwrap()
         .write_all(s.as_bytes())
         .unwrap();
