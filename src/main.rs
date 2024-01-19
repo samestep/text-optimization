@@ -260,7 +260,11 @@ fn val_and_grad(sums: &Sums, indices: &[usize], coords: &[f64], grad: &mut [f64]
     fx
 }
 
-fn optimize(sums: &Sums, mut glyphs: Glyphs, mut callback: impl FnMut(&[usize], &[f64], &[f64])) {
+fn optimize(
+    sums: &Sums,
+    mut glyphs: Glyphs,
+    mut callback: impl FnMut(&[usize], &[f64], &[f64]),
+) -> Glyphs {
     callback(&glyphs.indices, &glyphs.hues, &glyphs.coords);
     let cfg = lbfgs::Config {
         m: 17,
@@ -293,6 +297,7 @@ fn optimize(sums: &Sums, mut glyphs: Glyphs, mut callback: impl FnMut(&[usize], 
             }
         },
     );
+    glyphs
 }
 
 fn polygon(w: &mut impl fmt::Write, points: &[Vec2]) -> fmt::Result {
@@ -456,18 +461,31 @@ fn main() {
 
     let dir_frames = dir.join("frames");
     create_dir_all(&dir_frames).unwrap();
-    let mut i = 0;
-    optimize(
+    let mut i: usize = 0;
+    let Glyphs {
+        indices,
+        hues,
+        coords,
+    } = optimize(
         &Sums { contains, pairs },
         init(1),
         |indices, hues, coords| {
-            let mut s = String::new();
-            arrangement(&mut s, indices, hues, coords).unwrap();
-            File::create(dir_frames.join(format!("{i}.svg")))
-                .unwrap()
-                .write_all(s.as_bytes())
-                .unwrap();
+            if i.count_ones() < 2 {
+                let mut s = String::new();
+                arrangement(&mut s, indices, hues, coords).unwrap();
+                File::create(dir_frames.join(format!("{i}.svg")))
+                    .unwrap()
+                    .write_all(s.as_bytes())
+                    .unwrap();
+            }
             i += 1;
         },
     );
+    i -= 1;
+    let mut s = String::new();
+    arrangement(&mut s, &indices, &hues, &coords).unwrap();
+    File::create(dir_frames.join(format!("{i}.svg")))
+        .unwrap()
+        .write_all(s.as_bytes())
+        .unwrap();
 }
