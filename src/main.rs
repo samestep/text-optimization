@@ -99,6 +99,7 @@ const BIG: char = 'S';
 const WIDTH: f64 = 158.;
 const HEIGHT: f64 = 196.;
 const SCALE: f64 = 1. / 15.;
+const GAP: f64 = 3.;
 
 type Polygon = Vec<Vec2>;
 
@@ -210,7 +211,7 @@ struct Glyphs {
 
 fn init(seed: u64) -> Glyphs {
     let mut rng = Pcg64Mcg::seed_from_u64(seed);
-    let n = 100;
+    let n = 60;
     let mut coords: Vec<_> = (0..n).map(|_| rng.gen_range(0.0..WIDTH)).collect();
     coords.extend((0..n).map(|_| rng.gen_range(0.0..HEIGHT)));
     Glyphs {
@@ -222,6 +223,7 @@ fn init(seed: u64) -> Glyphs {
 
 struct Sums {
     contains: Vec<Polygon>,
+    pairs: Vec<Vec<Polygon>>,
 }
 
 fn val_and_grad(sums: &Sums, indices: &[usize], coords: &[f64], grad: &mut [f64]) -> f64 {
@@ -232,10 +234,27 @@ fn val_and_grad(sums: &Sums, indices: &[usize], coords: &[f64], grad: &mut [f64]
     let mut fx = 0.;
     for i in 0..n {
         let (z, dp) = sd_polygon(&sums.contains[indices[i]], vec2(x[i], y[i]));
-        if z > 0. {
-            fx += z;
-            dx[i] += dp.x;
-            dy[i] += dp.y;
+        let w = z + GAP;
+        if w > 0. {
+            fx += w * w;
+            dx[i] += 2. * w * dp.x;
+            dy[i] += 2. * w * dp.y;
+        }
+    }
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let (z, dp) = sd_polygon(
+                &sums.pairs[indices[i]][indices[j]],
+                (vec2(x[j], y[j]) - vec2(x[i], y[i])) / SCALE,
+            );
+            let w = GAP - SCALE * z;
+            if w > 0. {
+                fx += w * w;
+                dx[i] += 2. * w * dp.x;
+                dy[i] += 2. * w * dp.y;
+                dx[j] -= 2. * w * dp.x;
+                dy[j] -= 2. * w * dp.y;
+            }
         }
     }
     fx
@@ -268,8 +287,8 @@ fn optimize(sums: &Sums, mut glyphs: Glyphs, mut callback: impl FnMut(&[usize], 
             if info.fx == fx {
                 Some(())
             } else {
-                println!("{}", info.fx);
                 fx = info.fx;
+                println!("{fx}");
                 None
             }
         },
@@ -438,13 +457,17 @@ fn main() {
     let dir_frames = dir.join("frames");
     create_dir_all(&dir_frames).unwrap();
     let mut i = 0;
-    optimize(&Sums { contains }, init(0), |indices, hues, coords| {
-        let mut s = String::new();
-        arrangement(&mut s, indices, hues, coords).unwrap();
-        File::create(dir_frames.join(format!("{i}.svg")))
-            .unwrap()
-            .write_all(s.as_bytes())
-            .unwrap();
-        i += 1;
-    });
+    optimize(
+        &Sums { contains, pairs },
+        init(1),
+        |indices, hues, coords| {
+            let mut s = String::new();
+            arrangement(&mut s, indices, hues, coords).unwrap();
+            File::create(dir_frames.join(format!("{i}.svg")))
+                .unwrap()
+                .write_all(s.as_bytes())
+                .unwrap();
+            i += 1;
+        },
+    );
 }
