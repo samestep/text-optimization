@@ -209,9 +209,8 @@ struct Glyphs {
     coords: Vec<f64>,
 }
 
-fn init(seed: u64) -> Glyphs {
+fn init(seed: u64, n: usize) -> Glyphs {
     let mut rng = Pcg64Mcg::seed_from_u64(seed);
-    let n = 60;
     let mut coords: Vec<_> = (0..n).map(|_| rng.gen_range(0.0..WIDTH)).collect();
     coords.extend((0..n).map(|_| rng.gen_range(0.0..HEIGHT)));
     Glyphs {
@@ -264,7 +263,7 @@ fn optimize(
     sums: &Sums,
     mut glyphs: Glyphs,
     mut callback: impl FnMut(&[usize], &[f64], &[f64]),
-) -> Glyphs {
+) -> (Glyphs, f64) {
     callback(&glyphs.indices, &glyphs.hues, &glyphs.coords);
     let cfg = lbfgs::Config {
         m: 17,
@@ -297,7 +296,7 @@ fn optimize(
             }
         },
     );
-    glyphs
+    (glyphs, fx)
 }
 
 fn polygon(w: &mut impl fmt::Write, points: &[Vec2]) -> fmt::Result {
@@ -377,7 +376,7 @@ fn arrangement(
     Ok(())
 }
 
-fn main() {
+fn get_sums(dir: &Path) -> Sums {
     let polygons: Vec<Polygon> = GLYPHS.iter().map(|&(_, path)| polygonize(path)).collect();
 
     let mut big: Vec<Point> = polygons[GLYPHS.iter().position(|&(c, _)| c == BIG).unwrap()]
@@ -418,8 +417,6 @@ fn main() {
         })
         .collect();
 
-    let dir = Path::new("out");
-
     let dir_polygons = dir.join("polygons");
     create_dir_all(&dir_polygons).unwrap();
     for (i, p) in polygons.iter().enumerate() {
@@ -459,28 +456,31 @@ fn main() {
         }
     }
 
-    let dir_frames = dir.join("frames");
+    Sums { contains, pairs }
+}
+
+fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
+    let dir_frames = dir.join(format!("{seed}-{n}"));
     create_dir_all(&dir_frames).unwrap();
     let mut i: usize = 0;
-    let Glyphs {
-        indices,
-        hues,
-        coords,
-    } = optimize(
-        &Sums { contains, pairs },
-        init(1),
-        |indices, hues, coords| {
-            if i.count_ones() < 2 {
-                let mut s = String::new();
-                arrangement(&mut s, indices, hues, coords).unwrap();
-                File::create(dir_frames.join(format!("{i}.svg")))
-                    .unwrap()
-                    .write_all(s.as_bytes())
-                    .unwrap();
-            }
-            i += 1;
+    let (
+        Glyphs {
+            indices,
+            hues,
+            coords,
         },
-    );
+        fx,
+    ) = optimize(sums, init(seed, n), |indices, hues, coords| {
+        if i.count_ones() < 2 {
+            let mut s = String::new();
+            arrangement(&mut s, indices, hues, coords).unwrap();
+            File::create(dir_frames.join(format!("{i}.svg")))
+                .unwrap()
+                .write_all(s.as_bytes())
+                .unwrap();
+        }
+        i += 1;
+    });
     i -= 1;
     let mut s = String::new();
     arrangement(&mut s, &indices, &hues, &coords).unwrap();
@@ -488,4 +488,11 @@ fn main() {
         .unwrap()
         .write_all(s.as_bytes())
         .unwrap();
+    fx
+}
+
+fn main() {
+    let dir = Path::new("out");
+    let sums = get_sums(dir);
+    run(dir, &sums, 1, 60);
 }
