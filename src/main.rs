@@ -501,5 +501,5 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
 fn main() {
     let dir = Path::new("out");
     let sums = get_sums(dir);
-    run(dir, &sums, 12, 80);
+    run(dir, &sums, 2532, 80);
 }
