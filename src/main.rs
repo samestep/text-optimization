@@ -475,8 +475,11 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
         fx,
     ) = optimize(sums, init(seed, n), |info, indices, hues, coords| {
         if i.count_ones() < 2 {
+            print!("i = {i}");
             if let Some(info) = info {
-                println!("i = {i}, fx = {}", info.fx);
+                println!(", fx = {}", info.fx);
+            } else {
+                println!();
             }
             let mut s = String::new();
             arrangement(&mut s, indices, hues, coords).unwrap();
