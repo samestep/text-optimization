@@ -3,6 +3,13 @@ mod lbfgs;
 use minkowski::{extract_loops, reduced_convolution, Point};
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64Mcg;
+use resvg::{
+    render,
+    tiny_skia::Pixmap,
+    usvg::{
+        fontdb::Database, Options, PostProcessingSteps, Transform, Tree, TreeParsing, TreePostProc,
+    },
+};
 use std::{
     fmt,
     fs::{create_dir_all, File},
@@ -379,6 +386,22 @@ fn arrangement(
     Ok(())
 }
 
+fn rasterize(svg: &str, scale: f32) -> Pixmap {
+    let mut tree = Tree::from_str(svg, &Options::default()).unwrap();
+    tree.postprocess(PostProcessingSteps::default(), &Database::new());
+    let mut pixmap = Pixmap::new(
+        (scale * tree.size.width()) as u32,
+        (scale * tree.size.height()) as u32,
+    )
+    .unwrap();
+    render(
+        &tree,
+        Transform::from_scale(scale, scale),
+        &mut pixmap.as_mut(),
+    );
+    pixmap
+}
+
 fn get_sums(dir: &Path) -> Sums {
     let polygons: Vec<Polygon> = GLYPHS.iter().map(|&(_, path)| polygonize(path)).collect();
 
@@ -465,6 +488,7 @@ fn get_sums(dir: &Path) -> Sums {
 fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
     let dir_frames = dir.join(format!("{seed}-{n}"));
     create_dir_all(&dir_frames).unwrap();
+    let scale = 10.;
     let mut i: usize = 0;
     let (
         Glyphs {
@@ -487,6 +511,9 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
                 .unwrap()
                 .write_all(s.as_bytes())
                 .unwrap();
+            rasterize(&s, scale)
+                .save_png(dir_frames.join(format!("{i}.png")))
+                .unwrap();
         }
         i += 1;
     });
@@ -497,6 +524,9 @@ fn run(dir: &Path, sums: &Sums, seed: u64, n: usize) -> f64 {
     File::create(dir_frames.join(format!("{i}.svg")))
         .unwrap()
         .write_all(s.as_bytes())
+        .unwrap();
+    rasterize(&s, scale)
+        .save_png(dir_frames.join(format!("{i}.png")))
         .unwrap();
     fx
 }
