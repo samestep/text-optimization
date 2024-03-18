@@ -194,9 +194,9 @@ dependencies = [
 
 [[package]]
 name = "minkowski"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6374ae161558876f8135e2164a8bcd3d3883e3ae1f6533d6bee940e9cc03f939"
+checksum = "53a7502602ee4e10fd6d7f907ad45f7ed1564816813316aa1b0648fbd60fa04d"
 
 [[package]]
 name = "pico-args"

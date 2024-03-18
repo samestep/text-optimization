@@ -420,7 +420,7 @@ fn get_sums(dir: &Path) -> Sums {
             extract_loops(&reduced_convolution(&big, &q1))
                 .swap_remove(0)
                 .into_iter()
-                .map(|(x, y)| Vec2 { x, y })
+                .map(|((x, y), _)| Vec2 { x, y })
                 .collect()
         })
         .collect();
@@ -436,7 +436,7 @@ fn get_sums(dir: &Path) -> Sums {
                     extract_loops(&reduced_convolution(&p1, &q1))
                         .swap_remove(0)
                         .into_iter()
-                        .map(|(x, y)| Vec2 { x, y })
+                        .map(|((x, y), _)| Vec2 { x, y })
                         .collect()
                 })
                 .collect()
